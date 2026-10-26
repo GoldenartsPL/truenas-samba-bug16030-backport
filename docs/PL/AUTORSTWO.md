@@ -22,10 +22,10 @@ Samodzielnie przygotował backport do TrueNAS CE 25.10.7, pakiet, kompilację, w
 
 **CERTBUD to środowisko testów i wdrożenia**, a nie autor ani zespół programistyczny opracowujący tę poprawkę.
 
-## Nienaruszona postać patcha
+## Pochodzenie i nagłówek patcha
 
-Historyczny plik patcha zachowujemy bez modyfikacji, wraz z nagłówkiem `From: CERTBUD Backport <certbud-backport@localhost>`. Ten wpis jest historyczną etykietą **lokalnego commita integracyjnego**, a nie przypisaniem autorstwa pierwotnego kodu zespołowi CERTBUD.
+Historyczna wersja patcha (SHA-256 e988506ec8db69ff25401c05975c64014534393fdeb5e5af60592c246af7659e) została zachowana osobno przez autora integracji.
+Na potrzeby publikacji zmieniono wyłącznie nagłówki formatu mailowego From: i Subject:, zastępując dawną etykietę CERTBUD Backport przez Rafal Gladysz <rafal.glad@gmail.com>. Kod zmian (diff) nie został zmodyfikowany.
+SHA-256 opublikowanej wersji: eb32ddc7b5f099132fd770d3b750b09f925d31931c0211e8addff18828c91070.
 
-SHA-256 patcha: `e988506ec8db69ff25401c05975c64014534393fdeb5e5af60592c246af7659e`
-
-Repozytorium publikuje integrację istniejącej poprawki i nie jest oficjalnym wydaniem iXsystems.
+Pole From: oznacza integratora backportu do TrueNAS, a NIE autora oryginalnego kodu Samba. Autorzy upstream są wskazani powyżej.

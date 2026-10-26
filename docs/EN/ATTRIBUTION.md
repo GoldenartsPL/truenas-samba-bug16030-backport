@@ -20,10 +20,10 @@ Role: independent preparation of the TrueNAS 25.10.7 backport, packaging, compil
 
 Build and tests were conducted on Ubuntu and on a TrueNAS CE 25.10.7 virtual machine under Proxmox. The patched build was also deployed and checked in the CERTBUD TrueNAS environment. CERTBUD is the test/deployment environment, **not** the author or a development team responsible for this contribution.
 
-## Original artifact integrity
+## Patch provenance and published header
 
-The historical patch is deliberately retained unchanged, including its original header `From: CERTBUD Backport <certbud-backport@localhost>`. This is a legacy **local backport commit label**, not an upstream author credit or a statement that a CERTBUD team developed the code.
+The original archived patch SHA-256 is e988506ec8db69ff25401c05975c64014534393fdeb5e5af60592c246af7659e; the contributor retains that file separately.
+For publication only the email-format From: and Subject: fields were updated from the historical CERTBUD Backport placeholder to Rafal Gladysz <rafal.glad@gmail.com> and a neutral backport subject. The original source-code diff hunks were not altered.
+Published patch SHA-256: eb32ddc7b5f099132fd770d3b750b09f925d31931c0211e8addff18828c91070.
 
-Patch SHA-256 (unchanged): `e988506ec8db69ff25401c05975c64014534393fdeb5e5af60592c246af7659e`
-
-This public GitHub repository documents an integration of an existing fix, not a newly invented Samba patch. It is not an official iXsystems release.
+This patch's From: field credits the TrueNAS **backport integrator**, not the author of the upstream Samba changes. All underlying upstream authorship remains with the Samba contributors identified above.

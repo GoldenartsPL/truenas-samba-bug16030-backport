@@ -1,7 +1,7 @@
 From 79e84b61aac85643a0278406a0f57369116f3452 Mon Sep 17 00:00:00 2001
-From: CERTBUD Backport <certbud-backport@localhost>
+From: Rafal Gladysz <rafal.glad@gmail.com>
 Date: Tue, 20 Oct 2026 17:46:17 +0000
-Subject: [PATCH] CERTBUD: backport Samba BUG 16030 to TrueNAS 25.10.7
+Subject: [PATCH] Backport upstream Samba BUG16030 to TrueNAS 25.10.7
 
 ---
  source3/modules/vfs_fruit.c        |   1 +
