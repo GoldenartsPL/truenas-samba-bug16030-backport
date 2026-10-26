@@ -11,3 +11,5 @@ Zarchiwizowane wyniki: kompilacja na środowisku Ubuntu/Linux i Debian 12 system
 Patch: siedem plików, +241/-21 linii, testy `smb2.maximum_allowed.read_only_file` i `read_only_dir`. Zachowujemy niezmieniony oryginalny patch z historycznym nagłówkiem `CERTBUD Backport` — dokumentacja wyjaśnia autorstwo. Nie zastępuj nagłówka bez zachowania ścieżki pochodzenia.
 
 Dalej: [publikacja krok po kroku](docs/PL/PUBLIKACJA.md), [użytkowanie](docs/PL/UZYCIE.md), [testy](docs/PL/TESTY.md), [autorstwo](docs/PL/AUTORSTWO.md).
+
+Informacje o autorach i pochodzeniu poprawek: [Autorstwo](docs/PL/AUTORSTWO.md). Historyczny naglowek patcha nie przypisuje autorstwa kodu upstream.

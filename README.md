@@ -40,3 +40,5 @@ No unattended installer is provided. Applying an unofficial `.deb` to a TrueNAS 
 ## Project status
 
 Community backport, pending engineering review and wider testing. Please report findings via the iXsystems tracker and link them in a GitHub issue.
+
+For author credits and upstream provenance, see [Attribution](docs/EN/ATTRIBUTION.md). The historical patch header is a local integration label, not an upstream author credit.
