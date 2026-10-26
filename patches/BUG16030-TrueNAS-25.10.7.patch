@@ -1,0 +1,438 @@
+From 79e84b61aac85643a0278406a0f57369116f3452 Mon Sep 17 00:00:00 2001
+From: CERTBUD Backport <certbud-backport@localhost>
+Date: Tue, 20 Oct 2026 17:46:17 +0000
+Subject: [PATCH] CERTBUD: backport Samba BUG 16030 to TrueNAS 25.10.7
+
+---
+ source3/modules/vfs_fruit.c        |   1 +
+ source3/smbd/fake_file.c           |   1 +
+ source3/smbd/globals.h             |   1 +
+ source3/smbd/open.c                |  74 ++++++++----
+ source3/smbd/smb2_create.c         |   1 +
+ source4/selftest/tests.py          |   1 +
+ source4/torture/smb2/max_allowed.c | 183 ++++++++++++++++++++++++++++-
+ 7 files changed, 241 insertions(+), 21 deletions(-)
+
+diff --git a/source3/modules/vfs_fruit.c b/source3/modules/vfs_fruit.c
+index 7e22126..ac25565 100644
+--- a/source3/modules/vfs_fruit.c
++++ b/source3/modules/vfs_fruit.c
+@@ -4605,6 +4605,7 @@ static NTSTATUS fruit_freaddir_attr(struct vfs_handle_struct *handle,
+ 		status = smbd_calculate_access_mask_fsp(fsp->conn->cwd_fsp,
+ 			fsp,
+ 			false,
++			false,
+ 			SEC_FLAG_MAXIMUM_ALLOWED,
+ 			&attr_data->attr_data.aapl.max_access);
+ 		if (!NT_STATUS_IS_OK(status)) {
+diff --git a/source3/smbd/fake_file.c b/source3/smbd/fake_file.c
+index f53fb70..863d5b6 100644
+--- a/source3/smbd/fake_file.c
++++ b/source3/smbd/fake_file.c
+@@ -213,6 +213,7 @@ NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
+ 	status = smbd_calculate_access_mask_fsp(conn->cwd_fsp,
+ 					fsp,
+ 					false,
++					false,
+ 					access_mask,
+ 					&access_mask);
+ 	if (!NT_STATUS_IS_OK(status)) {
+diff --git a/source3/smbd/globals.h b/source3/smbd/globals.h
+index f498385..0617447 100644
+--- a/source3/smbd/globals.h
++++ b/source3/smbd/globals.h
+@@ -187,6 +187,7 @@ NTSTATUS smbd_dirptr_lanman2_entry(TALLOC_CTX *ctx,
+ NTSTATUS smbd_calculate_access_mask_fsp(struct files_struct *dirsfp,
+ 			struct files_struct *fsp,
+ 			bool use_privs,
++			bool ignore_readonly,
+ 			uint32_t access_mask,
+ 			uint32_t *access_mask_out);
+ 
+diff --git a/source3/smbd/open.c b/source3/smbd/open.c
+index 8d46ce7..0fb052f 100644
+--- a/source3/smbd/open.c
++++ b/source3/smbd/open.c
+@@ -443,6 +443,7 @@ static NTSTATUS check_base_file_access(struct files_struct *fsp,
+ 	status = smbd_calculate_access_mask_fsp(fsp->conn->cwd_fsp,
+ 					fsp,
+ 					false,
++					false,
+ 					access_mask,
+ 					&access_mask);
+ 	if (!NT_STATUS_IS_OK(status)) {
+@@ -1054,14 +1055,6 @@ static NTSTATUS open_file(
+ 	bool open_fd = false;
+ 	bool posix_open = fsp->fsp_flags.posix_open;
+ 
+-	/*
+-	 * Catch early an attempt to open an existing
+-	 * directory as a file.
+-	 */
+-	if (file_existed && S_ISDIR(fsp->fsp_name->st.st_ex_mode)) {
+-		return NT_STATUS_FILE_IS_A_DIRECTORY;
+-	}
+-
+ 	/*
+ 	 * This little piece of insanity is inspired by the
+ 	 * fact that an NT client can open a file for O_RDONLY,
+@@ -3258,6 +3251,7 @@ static NTSTATUS smbd_calculate_maximum_allowed_access_fsp(
+ 			struct files_struct *dirfsp,
+ 			struct files_struct *fsp,
+ 			bool use_privs,
++			bool ignore_readonly,
+ 			uint32_t *p_access_mask)
+ {
+ 	struct security_descriptor *sd = NULL;
+@@ -3339,17 +3333,44 @@ static NTSTATUS smbd_calculate_maximum_allowed_access_fsp(
+ 		}
+ 	}
+ 
+-	dosattrs = fdos_mode(fsp);
+-	if ((dosattrs & FILE_ATTRIBUTE_READONLY) || !CAN_WRITE(fsp->conn)) {
++	if (!CAN_WRITE(fsp->conn)) {
+ 		*p_access_mask &= ~(FILE_GENERIC_WRITE | DELETE_ACCESS);
+ 	}
+ 
++	if (ignore_readonly) {
++		/*
++		 * We end up here when the maximum access mask for the "MxAC"
++		 * create context response is needed. That ignores the read-only
++		 * attribute, cf smbtorture tests
++		 * "smb2.maximum_allowed.read_only_file" and
++		 * "smb2.maximum_allowed.read_only_dir".
++		 */
++		goto done;
++	}
++
++	/*
++	 * MS_FSA 2.1.5.1.2.1 "Algorithm to Check Access to an Existing File"
++	 * has the below, although it misses to state that this only affects
++	 * files, not directories.
++	 */
++	if (S_ISREG(fsp->fsp_name->st.st_ex_mode)) {
++		dosattrs = fdos_mode(fsp);
++		if (dosattrs & FILE_ATTRIBUTE_READONLY) {
++			*p_access_mask &= ~(FILE_WRITE_DATA |
++					    FILE_APPEND_DATA |
++					    FILE_ADD_SUBDIRECTORY |
++					    FILE_DELETE_CHILD);
++		}
++	}
++
++done:
+ 	return NT_STATUS_OK;
+ }
+ 
+ NTSTATUS smbd_calculate_access_mask_fsp(struct files_struct *dirfsp,
+ 			struct files_struct *fsp,
+ 			bool use_privs,
++			bool ignore_readonly,
+ 			uint32_t access_mask,
+ 			uint32_t *access_mask_out)
+ {
+@@ -3376,6 +3397,7 @@ NTSTATUS smbd_calculate_access_mask_fsp(struct files_struct *dirfsp,
+ 						   dirfsp,
+ 						   fsp,
+ 						   use_privs,
++						   ignore_readonly,
+ 						   &access_mask);
+ 
+ 		if (!NT_STATUS_IS_OK(status)) {
+@@ -3709,6 +3731,14 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
+ 					req->vuid);
+ 	}
+ 
++	/*
++	 * Catch early an attempt to open an existing
++	 * directory as a file.
++	 */
++	if (file_existed && S_ISDIR(fsp->fsp_name->st.st_ex_mode)) {
++		return NT_STATUS_FILE_IS_A_DIRECTORY;
++	}
++
+ 	if (new_dos_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+ 		posix_open = True;
+ 		unx_mode = (mode_t)(new_dos_attributes & ~FILE_FLAG_POSIX_SEMANTICS);
+@@ -3895,11 +3925,13 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
+ 		}
+ 	}
+ 
+-	status = smbd_calculate_access_mask_fsp(parent_dir_fname->fsp,
+-						smb_fname->fsp,
+-						false,
+-						access_mask,
+-						&access_mask);
++status = smbd_calculate_access_mask_fsp(
++                parent_dir_fname->fsp,
++                smb_fname->fsp,
++                false,
++                false,
++                access_mask,
++                &access_mask);
+ 	if (!NT_STATUS_IS_OK(status)) {
+ 		DBG_DEBUG("smbd_calculate_access_mask_fsp "
+ 			"on file %s returned %s\n",
+@@ -5022,11 +5054,13 @@ static NTSTATUS open_directory(connection_struct *conn,
+ 		}
+ 	}
+ 
+-	status = smbd_calculate_access_mask_fsp(parent_dir_fname->fsp,
+-					smb_dname->fsp,
+-					false,
+-					access_mask,
+-					&access_mask);
++status = smbd_calculate_access_mask_fsp(
++                parent_dir_fname->fsp,
++                smb_dname->fsp,
++                false,
++                false,
++                access_mask,
++                &access_mask);
+ 	if (!NT_STATUS_IS_OK(status)) {
+ 		DBG_DEBUG("smbd_calculate_access_mask_fsp "
+ 			"on file %s returned %s\n",
+diff --git a/source3/smbd/smb2_create.c b/source3/smbd/smb2_create.c
+index 01e0689..88e5c7b 100644
+--- a/source3/smbd/smb2_create.c
++++ b/source3/smbd/smb2_create.c
+@@ -1733,6 +1733,7 @@ static void smbd_smb2_create_after_exec(struct tevent_req *req)
+ 					conn->cwd_fsp,
+ 					state->result,
+ 					false,
++					true,
+ 					SEC_FLAG_MAXIMUM_ALLOWED,
+ 					&max_access_granted);
+ 
+diff --git a/source4/selftest/tests.py b/source4/selftest/tests.py
+index 33e1121..700a1b2 100755
+--- a/source4/selftest/tests.py
++++ b/source4/selftest/tests.py
+@@ -444,6 +444,7 @@ smb2_s3only = [
+     "smb2.ea",
+     "smb2.create_no_streams",
+     "smb2.streams",
++    "smb2.maximum_allowed",
+ ]
+ smb2 = [x for x in smbtorture4_testsuites("smb2.") if x not in smb2_s3only]
+ 
+diff --git a/source4/torture/smb2/max_allowed.c b/source4/torture/smb2/max_allowed.c
+index 6d69b84..1f42765 100644
+--- a/source4/torture/smb2/max_allowed.c
++++ b/source4/torture/smb2/max_allowed.c
+@@ -228,6 +228,7 @@ static bool torture_smb2_read_only_file(struct torture_context *tctx,
+ {
+ 	struct smb2_create c;
+ 	struct smb2_handle h = {{0}};
++	union smb_fileinfo getinfo;
+ 	bool ret = true;
+ 	NTSTATUS status;
+ 
+@@ -252,6 +253,7 @@ static bool torture_smb2_read_only_file(struct torture_context *tctx,
+ 		.in.file_attributes = FILE_ATTRIBUTE_READONLY,
+ 		.in.create_disposition = NTCREATEX_DISP_OPEN,
+ 		.in.fname = MAXIMUM_ALLOWED_FILE,
++		.in.query_maximal_access = true,
+ 	};
+ 
+ 	status = smb2_create(tree, tctx, &c);
+@@ -259,9 +261,187 @@ static bool torture_smb2_read_only_file(struct torture_context *tctx,
+ 		tctx, status, ret, done,
+ 		"Failed to open READ-ONLY file with SEC_FLAG_MAXIMUM_ALLOWED\n");
+ 	h = c.out.file.handle;
++
++	/*
++	 * Verify maximum access from create context
++	 */
++
++	torture_assert_u32_equal_goto(tctx,
++				      c.out.maximal_access,
++				      SEC_RIGHTS_FILE_ALL,
++				      ret, done,
++				      "Wrong maxaccess\n");
++
++	/*
++	 * Verify actual access mask from infolevel
++	 */
++
++	ZERO_STRUCT(getinfo);
++	getinfo.generic.level = RAW_FILEINFO_ACCESS_INFORMATION;
++	getinfo.generic.in.file.handle = h;
++
++	status = smb2_getinfo_file(tree, tree, &getinfo);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_getinfo_file\n");
++
++	torture_assert_u32_equal_goto(
++		tctx,
++		getinfo.access_information.out.access_flags,
++		/*
++		 * Use exactly the bits from MS-FSA 2.1.5.1.2.1 "Algorithm to
++		 * Check Access to an Existing File" and note that
++		 * SEC_FILE_APPEND_DATA = SEC_DIR_ADD_SUBDIR
++		 */
++		SEC_RIGHTS_FILE_ALL & ~(
++			SEC_FILE_WRITE_DATA |
++			SEC_FILE_APPEND_DATA |
++			SEC_DIR_ADD_SUBDIR |
++			SEC_DIR_DELETE_CHILD
++		),
++		ret, done,
++		"Bad access mask\n");
++
++	status = smb2_util_write(tree, h, "foo", 0, 3);
++	torture_assert_ntstatus_equal_goto(tctx,
++					   status,
++					   NT_STATUS_ACCESS_DENIED,
++					   ret, done,
++					   "smb2_getinfo_file\n");
++
++	smb2_util_close(tree, h);
++	ZERO_STRUCT(h);
++
++done:
++	if (!smb2_util_handle_empty(h)) {
++		smb2_util_close(tree, h);
++	}
++	smb2_deltree(tree, MAXIMUM_ALLOWED_FILE);
++	return ret;
++}
++
++static bool torture_smb2_read_only_dir(struct torture_context *tctx,
++				       struct smb2_tree *tree)
++{
++	struct smb2_create c;
++	struct smb2_handle h = {};
++	union smb_fileinfo getinfo;
++	bool ret = true;
++	NTSTATUS status;
++
++	smb2_deltree(tree, MAXIMUM_ALLOWED_FILE);
++
++	c = (struct smb2_create) {
++		.in.desired_access = SEC_RIGHTS_FILE_ALL,
++		.in.file_attributes = FILE_ATTRIBUTE_READONLY|NTCREATEX_OPTIONS_DIRECTORY,
++		.in.create_disposition = NTCREATEX_DISP_CREATE,
++		.in.create_options = NTCREATEX_OPTIONS_DIRECTORY,
++		.in.fname = MAXIMUM_ALLOWED_FILE,
++	};
++
++	status = smb2_create(tree, tctx, &c);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_create failed\n");
++	h = c.out.file.handle;
++	smb2_util_close(tree, h);
++	ZERO_STRUCT(h);
++
++	c = (struct smb2_create) {
++		.in.desired_access = SEC_FLAG_MAXIMUM_ALLOWED,
++		.in.file_attributes = FILE_ATTRIBUTE_READONLY|NTCREATEX_OPTIONS_DIRECTORY,
++		.in.create_disposition = NTCREATEX_DISP_OPEN,
++		.in.fname = MAXIMUM_ALLOWED_FILE,
++		.in.query_maximal_access = true,
++	};
++
++	status = smb2_create(tree, tctx, &c);
++	torture_assert_ntstatus_ok_goto(
++		tctx, status, ret, done,
++		"Failed to open READ-ONLY file with SEC_FLAG_MAXIMUM_ALLOWED\n");
++	h = c.out.file.handle;
++
++	/*
++	 * Verify maximum access from create context
++	 */
++
++	torture_assert_u32_equal_goto(tctx,
++				      c.out.maximal_access,
++				      SEC_RIGHTS_FILE_ALL,
++				      ret, done,
++				      "Wrong maxaccess\n");
++
++	/*
++	 * Verify actual access mask from infolevel
++	 */
++
++	ZERO_STRUCT(getinfo);
++	getinfo.generic.level = RAW_FILEINFO_ACCESS_INFORMATION;
++	getinfo.generic.in.file.handle = h;
++
++	status = smb2_getinfo_file(tree, tree, &getinfo);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_getinfo_file\n");
++
++	torture_assert_u32_equal_goto(
++		tctx,
++		getinfo.access_information.out.access_flags,
++		SEC_RIGHTS_FILE_ALL,
++		ret, done,
++		"Bad access mask\n");
++
+ 	smb2_util_close(tree, h);
+ 	ZERO_STRUCT(h);
+ 
++	/*
++	 * Verify we can create and delete a file in the directory
++	 */
++
++	c = (struct smb2_create) {
++		.in.desired_access = SEC_RIGHTS_FILE_ALL,
++		.in.create_disposition = NTCREATEX_DISP_CREATE,
++		.in.fname = MAXIMUM_ALLOWED_FILE "\\file",
++	};
++
++	status = smb2_create(tree, tctx, &c);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_create failed\n");
++	h = c.out.file.handle;
++
++
++	status = smb2_util_close(tree, h);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_close failed\n");
++	ZERO_STRUCT(h);
++
++	status = smb2_util_unlink(tree, MAXIMUM_ALLOWED_FILE "\\file");
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_util_unlink failed\n");
++
++	/*
++	 * Verify we can create and delete a directory in the directory
++	 */
++
++	c = (struct smb2_create) {
++		.in.desired_access = SEC_RIGHTS_FILE_ALL,
++		.in.create_disposition = NTCREATEX_DISP_CREATE,
++		.in.create_options = NTCREATEX_OPTIONS_DIRECTORY,
++		.in.fname = MAXIMUM_ALLOWED_FILE "\\dir",
++	};
++
++	status = smb2_create(tree, tctx, &c);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_create failed\n");
++	h = c.out.file.handle;
++
++	status = smb2_util_close(tree, h);
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_close failed\n");
++	ZERO_STRUCT(h);
++
++	status = smb2_util_rmdir(tree, MAXIMUM_ALLOWED_FILE "\\dir");
++	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
++					"smb2_util_unlink failed\n");
++
++
+ done:
+ 	if (!smb2_util_handle_empty(h)) {
+ 		smb2_util_close(tree, h);
+@@ -275,6 +455,7 @@ struct torture_suite *torture_smb2_max_allowed(TALLOC_CTX *ctx)
+ 	struct torture_suite *suite = torture_suite_create(ctx, "maximum_allowed");
+ 
+ 	torture_suite_add_1smb2_test(suite, "maximum_allowed", torture_smb2_maximum_allowed);
+-	torture_suite_add_1smb2_test(suite, "read_only", torture_smb2_read_only_file);
++	torture_suite_add_1smb2_test(suite, "read_only_file", torture_smb2_read_only_file);
++	torture_suite_add_1smb2_test(suite, "read_only_dir", torture_smb2_read_only_dir);
+ 	return suite;
+ }
+-- 
+2.43.0
+
