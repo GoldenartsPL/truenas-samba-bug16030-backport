@@ -42,3 +42,12 @@ No unattended installer is supplied. Do not install unofficial packages on produ
 ## iXsystems review and community testing
 
 [iXsystems Jira NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) is closed. Andrew Walker indicated that TrueNAS 27 already contains the upstream fix and did not recommend a separate hotfix backport. This is **not** an endorsement or adoption of this community patch. The repository remains an unofficial TrueNAS 25.10.7 backport; code review and isolated lab testing are welcome. See [full response and scope](docs/EN/IXSYSTEMS-RESPONSE.md).
+
+## Community discussion
+
+The public TrueNAS Community discussion invites independent code review and isolated lab testing:
+
+- [TrueNAS Community — Samba BUG16030 backport testing](https://forums.truenas.com/t/community-testing-samba-bug16030-backport-for-truenas-ce-25-10-7-windows-offline-files/68662 )
+- [iXsystems issue NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) — closed; iXsystems indicated that TrueNAS 27 already includes the upstream fix. This is not approval of this unofficial backport.
+
+Please test only in non-production environments.

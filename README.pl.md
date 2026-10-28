@@ -27,3 +27,12 @@ Dokumenty: [użycie](docs/PL/UZYCIE.md), [testy](docs/PL/TESTY.md), [autorstwo](
 ## Odpowiedź iXsystems i testy społeczności
 
 Zgłoszenie [NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) zostało zamknięte. Andrew Walker poinformował, że TrueNAS 27 zawiera już oryginalną poprawkę upstream i nie zaleca osobnego hotfixa. **Nie oznacza to** zatwierdzenia ani włączenia naszego społecznościowego patcha. Repozytorium pozostaje nieoficjalnym backportem dla TrueNAS 25.10.7. Zapraszamy do przeglądu kodu i testów w odizolowanym laboratorium. Zobacz [opis odpowiedzi i zakres projektu](docs/PL/ODPOWIEDZ-IXSYSTEMS.md).
+
+## Dyskusja społeczności TrueNAS
+
+Publiczny wątek zaprasza do niezależnej analizy kodu i testów w odizolowanym laboratorium:
+
+- [Forum TrueNAS — testy backportu Samba BUG16030](https://forums.truenas.com/t/community-testing-samba-bug16030-backport-for-truenas-ce-25-10-7-windows-offline-files/68662)
+- [Zgłoszenie iXsystems NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) — zamknięte; według iXsystems TrueNAS 27 zawiera już oryginalna poprawkę upstream. Nie oznacza to zatwierdzenia naszego backportu.
+
+Testy należy prowadzic w środowiskach nieprodukcyjnych.
