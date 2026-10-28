@@ -37,4 +37,8 @@ Verify the public patch with `bash scripts/verify-release.sh` from the repositor
 - [Attribution and provenance](docs/EN/ATTRIBUTION.md)
 - [Publication notes](docs/EN/PUBLISHING.md)
 
-No unattended installer is supplied. Do not install unofficial packages on production TrueNAS systems without independent review, backups and a tested rollback plan. This backport is pending iXsystems engineering review and broader community validation.
+No unattended installer is supplied. Do not install unofficial packages on production TrueNAS systems without independent review, backups and a tested rollback plan. The iXsystems ticket has been closed; independent community review remains welcome.
+
+## iXsystems review and community testing
+
+[iXsystems Jira NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) is closed. Andrew Walker indicated that TrueNAS 27 already contains the upstream fix and did not recommend a separate hotfix backport. This is **not** an endorsement or adoption of this community patch. The repository remains an unofficial TrueNAS 25.10.7 backport; code review and isolated lab testing are welcome. See [full response and scope](docs/EN/IXSYSTEMS-RESPONSE.md).

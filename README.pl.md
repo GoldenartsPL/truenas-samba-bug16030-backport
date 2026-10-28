@@ -23,3 +23,7 @@ Kompilacja na Ubuntu/Linux z Debian 12 Bookworm `systemd-nspawn`; testy funkcjon
 Patch obejmuje 7 plików (+241/-21 linii) oraz testy `read_only_file` i `read_only_dir`. Nie zaleca się bezpośredniego wdrażania nieoficjalnych pakietów na produkcji bez analizy i planu powrotu.
 
 Dokumenty: [użycie](docs/PL/UZYCIE.md), [testy](docs/PL/TESTY.md), [autorstwo](docs/PL/AUTORSTWO.md), [publikacja](docs/PL/PUBLIKACJA.md).
+
+## Odpowiedź iXsystems i testy społeczności
+
+Zgłoszenie [NAS-144905](https://ixsystems.atlassian.net/browse/NAS-144905) zostało zamknięte. Andrew Walker poinformował, że TrueNAS 27 zawiera już oryginalną poprawkę upstream i nie zaleca osobnego hotfixa. **Nie oznacza to** zatwierdzenia ani włączenia naszego społecznościowego patcha. Repozytorium pozostaje nieoficjalnym backportem dla TrueNAS 25.10.7. Zapraszamy do przeglądu kodu i testów w odizolowanym laboratorium. Zobacz [opis odpowiedzi i zakres projektu](docs/PL/ODPOWIEDZ-IXSYSTEMS.md).
